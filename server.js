@@ -15,18 +15,17 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Gemini / Google Generative AI
+// Gemini API setup
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-// Handler function (reutilizable)
+// Función reutilizable
 async function handlePokemonPrompt(prompt) {
   const result = await model.generateContent(prompt);
-  // result.response.text() puede variar según SDK; se usa tal cual en tu código original
   return result.response.text();
 }
 
-// Ruta original para chat (si tu frontend la usa)
+// ✅ Endpoint 1: /api/chat (por compatibilidad)
 app.post("/api/chat", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -40,10 +39,9 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// Compatibilidad con /pokemon (para frontend que llame a /pokemon)
-app.post("/pokemon", async (req, res) => {
+// ✅ Endpoint 2: /pokemon y /api/pokemon (ambos funcionan)
+app.post(["/pokemon", "/api/pokemon"], async (req, res) => {
   try {
-    // aquí asumimos que tu frontend envía { pokemon: "nombre" }
     const body = req.body || {};
     const nombre = body.pokemon || body.name || body.prompt || "";
     if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
@@ -57,6 +55,5 @@ app.post("/pokemon", async (req, res) => {
   }
 });
 
-// Exportar app para Vercel (NO usar app.listen)
+// Exportar para Vercel (sin app.listen)
 export default app;
-
