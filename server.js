@@ -2,6 +2,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
+import fetch from "node-fetch"; // ✅ si ya lo tienes en package.json, lo dejamos
 import { fileURLToPath } from "url";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -19,13 +20,13 @@ app.use(express.static(path.join(__dirname, "public")));
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-// Función reutilizable
+// 🔹 Función reutilizable para generar respuesta de Gemini
 async function handlePokemonPrompt(prompt) {
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// ✅ Endpoint 1: /api/chat (por compatibilidad)
+// ✅ Endpoint 1: /api/chat (compatibilidad general)
 app.post("/api/chat", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -44,10 +45,34 @@ app.post(["/pokemon", "/api/pokemon"], async (req, res) => {
   try {
     const body = req.body || {};
     const nombre = body.pokemon || body.name || body.prompt || "";
-    if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
+    if (!nombre) {
+      return res.status(400).json({ error: "No se envió nombre del Pokémon" });
+    }
 
-    const prompt = `Dame una descripción detallada de ${nombre} en Pokémon GO, incluyendo debilidades, fortalezas, ataques y estrategias.`;
+    // 🔹 Intentamos obtener datos base desde la PokéAPI
+    let tipos = "desconocido";
+    try {
+      const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre.toLowerCase()}`);
+      if (pokeRes.ok) {
+        const pokeData = await pokeRes.json();
+        tipos = pokeData.types.map((t) => t.type.name).join(", ");
+      }
+    } catch {
+      console.warn(`⚠️ No se pudo obtener info de PokéAPI para ${nombre}`);
+    }
+
+    const prompt = `
+      Analiza el Pokémon ${nombre} de tipo ${tipos}.
+      Dame una descripción estratégica para Pokémon GO:
+      - fortalezas
+      - debilidades
+      - ataques recomendados
+      - oponentes más efectivos
+      - consejos de batalla
+    `;
+
     const respuesta = await handlePokemonPrompt(prompt);
+
     return res.json({ respuesta });
   } catch (error) {
     console.error("Error en /pokemon:", error);
@@ -55,5 +80,5 @@ app.post(["/pokemon", "/api/pokemon"], async (req, res) => {
   }
 });
 
-// Exportar para Vercel (sin app.listen)
+// ✅ Exportar para Vercel (no usar app.listen)
 export default app;
