@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokeAsistente IA</title>
+  <style>
+    /* (todo tu CSS original intacto) */
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: radial-gradient(circle at top, #ff4b2b, #000);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .pokedex {
+      background: #d32f2f;
+      border: 5px solid #222;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 400px;
+      padding: 20px;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+    }
+    h1 { text-align: center; margin-bottom: 15px; text-shadow: 2px 2px 3px #000; }
+    form { display: flex; justify-content: center; margin-bottom: 15px; }
+    input {
+      width: 70%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px 0 0 8px;
+      font-size: 1em;
+    }
+    button {
+      padding: 10px 15px;
+      background: #222;
+      border: none;
+      color: #fff;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-left: 5px;
+    }
+    button:hover { background: #000; }
+    .screen {
+      background: #222;
+      border-radius: 10px;
+      padding: 15px;
+      color: #eee;
+      font-size: 0.95em;
+      line-height: 1.6;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    .pokemon-img {
+      width: 150px;
+      height: 150px;
+      margin: 15px auto;
+      display: block;
+      image-rendering: pixelated;
+      animation: float 2s ease-in-out infinite;
+    }
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+      100% { transform: translateY(0px); }
+    }
+    #resultado { white-space: pre-line; margin-top: 15px; }
+    #resultado p { margin-bottom: 10px; }
+    #resultado strong { color: #ffcc00; }
+    .tag {
+      display: inline-block;
+      background: #ffcc00;
+      color: #000;
+      padding: 3px 6px;
+      border-radius: 6px;
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    .highlight {
+      background-color: rgba(255, 204, 0, 0.3);
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    @media (max-width: 600px) {
+      .pokedex { width: 95%; }
+      input { width: 65%; }
+    }
+    .btn-audio {
+      display: none;
+      padding: 8px 12px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.3s;
+      margin: 10px auto 0 auto;
+    }
+    .btn-audio:hover { background: #222; }
+    .speaking {
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); background-color: #444; }
+      50% { transform: scale(1.1); background-color: #ffcc00; color: #000; }
+      100% { transform: scale(1); background-color: #444; color: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pokedex">
+    <h1>🔍 PokeAsistente IA</h1>
+    <form id="buscarForm">
+      <input type="text" id="pokemonInput" placeholder="Ingresa un Pokémon..." required>
+      <button type="submit">Buscar</button>
+    </form>
+
+    <div class="screen" id="screen">
+      <p>Busca tu Pokémon favorito y descubre sus ataques, debilidades y estrategias en Pokémon GO.</p>
+    </div>
+
+    <button class="btn-audio" id="btnAudio">🔊 Reproducir/Pausar</button>
+  </div>
+
+  <script>
+    const form = document.getElementById('buscarForm');
+    const input = document.getElementById('pokemonInput');
+    const screen = document.getElementById('screen');
+    const btnAudioEl = document.getElementById('btnAudio');
+
+    let speech = null;
+    let paused = false;
+    let currentParagraphIndex = 0;
+    let paragraphs = [];
+    let paragraphElements = [];
+
+    btnAudioEl.style.display = "none";
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+      }
+      paused = false;
+      btnAudioEl.classList.remove('speaking');
+
+      const nombre = input.value.trim().toLowerCase();
+      if (!nombre) return alert("Ingresa un nombre de Pokémon");
+
+      screen.innerHTML = `<p>🔎 Buscando información sobre <strong>${nombre}</strong>...</p>`;
+      btnAudioEl.style.display = "none";
+
+      try {
+        // ✅ AJUSTE PARA VERCEL
+        const res = await fetch(`/api/pokemon`, { 
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pokemon: nombre })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          screen.innerHTML = `<p>❌ Error: ${data.error || "No se pudo obtener información."}</p>`;
+          return;
+        }
+
+        const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+        const pokeData = pokeRes.ok ? await pokeRes.json() : null;
+        const sprite = pokeData ? pokeData.sprites.other["official-artwork"].front_default : "";
+
+        screen.innerHTML = `
+          <img src="${sprite}" alt="${nombre}" class="pokemon-img">
+          <h2>${nombre.toUpperCase()}</h2>
+          <div id="resultado">${formatText(data.respuesta)}</div>
+        `;
+
+        paragraphs = data.respuesta.replace(/[\*\/]/g, '').split(/\n+/).filter(p => p.trim() !== "");
+        paragraphElements = document.querySelectorAll('#resultado p');
+        currentParagraphIndex = 0;
+
+        btnAudioEl.style.display = "block";
+        speech = null;
+
+      } catch (err) {
+        console.error("❌ Error de conexión:", err);
+        screen.innerHTML = `<p>⚠️ Error al conectar con el servidor.</p>`;
+      }
+    });
+
+    btnAudioEl.addEventListener('click', () => {
+      const synth = window.speechSynthesis;
+      if (!paragraphs.length) return;
+
+      if (synth.speaking || paused) {
+        if (!paused) {
+          synth.pause();
+          paused = true;
+          btnAudioEl.classList.remove('speaking');
+        } else {
+          synth.resume();
+          paused = false;
+          btnAudioEl.classList.add('speaking');
+        }
+      } else {
+        currentParagraphIndex = 0;
+        speakNext();
+      }
+    });
+
+    function speakNext() {
+      if (currentParagraphIndex >= paragraphs.length) {
+        btnAudioEl.classList.remove('speaking');
+        currentParagraphIndex = 0;
+        paragraphElements.forEach(p => p.classList.remove('highlight'));
+        if(paragraphElements[0]) paragraphElements[0].scrollIntoView({behavior:'smooth', block:'start'});
+        speech = null;
+        return;
+      }
+
+      const paragraph = paragraphs[currentParagraphIndex];
+      const utterance = new SpeechSynthesisUtterance(paragraph);
+      utterance.lang = 'es-ES';
+
+      paragraphElements.forEach(p => p.classList.remove('highlight'));
+      const currentEl = paragraphElements[currentParagraphIndex];
+      if (currentEl) {
+        currentEl.classList.add('highlight');
+        currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      utterance.onend = () => {
+        currentParagraphIndex++;
+        speakNext();
+      };
+
+      speech = utterance;
+      window.speechSynthesis.speak(speech);
+      btnAudioEl.classList.add('speaking');
+      paused = false;
+    }
+
+    function formatText(text) {
+      if (!text) return "Sin respuesta del modelo.";
+
+      const paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
+
+      const tags = [
+        "Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques",
+        "Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos",
+        "Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"
+      ];
+
+      return paragraphs.map(p => {
+        tags.forEach(tag => {
+          const regex = new RegExp(`(${tag}):`, "gi");
+          p = p.replace(regex, `<span class="tag">${tag}</span>:`); 
+        });
+        return `<p>${p}</p>`;
+      }).join("");
+    }
+  </script>
+  <script>
+  // 🔄 Ping automático para “despertar” el servidor
+  window.addEventListener("load", () => {
+    fetch(`${window.location.origin}/`)
+      .then(() => console.log("✅ Servidor activo"))
+      .catch(() => console.warn("⚠️ No se pudo hacer ping al servidor"));
+  });
+  </script>
+</body>
+</html>
