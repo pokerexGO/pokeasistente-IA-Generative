@@ -271,5 +271,49 @@
       .catch(() => console.warn("⚠️ No se pudo hacer ping al servidor"));
   });
   </script>
+
+  <!-- 🌐 Fallback final para fetch (AppCreator24 / WebView antiguos) -->
+  <script>
+  (function() {
+    if (typeof window.fetch !== 'function') {
+      console.warn('⚠️ fetch no está disponible, usando polyfill con XMLHttpRequest.');
+      window.fetch = function(url, options) {
+        return new Promise(function(resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open(options && options.method ? options.method : 'GET', url, true);
+          if (options && options.headers) {
+            for (var key in options.headers) {
+              if (options.headers.hasOwnProperty(key)) {
+                xhr.setRequestHeader(key, options.headers[key]);
+              }
+            }
+          }
+          xhr.onload = function() {
+            var body = 'response' in xhr ? xhr.response : xhr.responseText;
+            resolve({
+              ok: (xhr.status >= 200 && xhr.status < 300),
+              status: xhr.status,
+              statusText: xhr.statusText,
+              text: function() { return Promise.resolve(body); },
+              json: function() { 
+                try { return Promise.resolve(JSON.parse(body)); }
+                catch (e) { return Promise.reject(e); }
+              }
+            });
+          };
+          xhr.onerror = function() {
+            reject(new TypeError('Network request failed'));
+          };
+          xhr.send(options && options.body ? options.body : null);
+        });
+      };
+    } else {
+      window.fetch('about:blank').catch(function() {
+        console.warn('⚠️ fetch está presente pero no funcional, aplicando fallback.');
+        delete window.fetch;
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
