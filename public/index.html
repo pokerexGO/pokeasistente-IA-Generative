@@ -127,17 +127,15 @@
 
     if (isInWebView() || faltaFetch || faltaPromise || faltaAsync) {
       console.log("🔧 Entorno limitado detectado. Cargando polyfills...");
-
       const scripts = [
         "https://cdn.jsdelivr.net/npm/es6-promise@4.2.8/dist/es6-promise.auto.min.js",
         "https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.min.js",
         "https://cdn.jsdelivr.net/npm/core-js-bundle@3.37.0/minified.js"
       ];
-
       scripts.forEach(src => {
         const s = document.createElement("script");
         s.src = src;
-        s.async = false; // asegurar orden
+        s.async = false;
         document.head.appendChild(s);
       });
     } else {
@@ -145,7 +143,6 @@
     }
   })();
   </script>
-
 </head>
 <body>
   <div class="pokedex">
@@ -154,11 +151,9 @@
       <input type="text" id="pokemonInput" placeholder="Ingresa un Pokémon..." required>
       <button type="submit">Buscar</button>
     </form>
-
     <div class="screen" id="screen">
       <p>Busca tu Pokémon favorito y descubre sus ataques, debilidades y estrategias en Pokémon GO.</p>
     </div>
-
     <button class="btn-audio" id="btnAudio">🔊 Reproducir/Pausar</button>
   </div>
 
@@ -167,21 +162,28 @@
     const input = document.getElementById('pokemonInput');
     const screen = document.getElementById('screen');
     const btnAudioEl = document.getElementById('btnAudio');
-
-    let speech = null;
-    let paused = false;
-    let currentParagraphIndex = 0;
-    let paragraphs = [];
-    let paragraphElements = [];
+    let speech = null, paused = false, currentParagraphIndex = 0, paragraphs = [], paragraphElements = [];
 
     btnAudioEl.style.display = "none";
 
+    // 🧩 NUEVA FUNCIÓN: obtiene datos del Pokémon con fallback interno
+    async function obtenerPokemon(nombre) {
+      try {
+        // Intento directo a la PokeAPI
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+        if (res.ok) return await res.json();
+        throw new Error("bloqueado o sin acceso");
+      } catch (err) {
+        console.warn("⚠️ PokeAPI bloqueada, usando proxy interno:", err.message);
+        const res = await fetch(`/api/proxy-pokemon/${nombre}`);
+        if (!res.ok) throw new Error("No se pudo obtener datos ni con proxy");
+        return await res.json();
+      }
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-        window.speechSynthesis.cancel();
-      }
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) window.speechSynthesis.cancel();
       paused = false;
       btnAudioEl.classList.remove('speaking');
 
@@ -197,17 +199,15 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pokemon: nombre })
         });
-
         const data = await res.json();
-
         if (!res.ok) {
           screen.innerHTML = `<p>❌ Error: ${data.error || "No se pudo obtener información."}</p>`;
           return;
         }
 
-        const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
-        const pokeData = pokeRes.ok ? await pokeRes.json() : null;
-        const sprite = pokeData ? pokeData.sprites.other["official-artwork"].front_default : "";
+        // ⚙️ ahora usa la función con fallback
+        const pokeData = await obtenerPokemon(nombre);
+        const sprite = pokeData?.sprites?.other?.["official-artwork"]?.front_default || "";
 
         screen.innerHTML = `
           <img src="${sprite}" alt="${nombre}" class="pokemon-img">
@@ -218,10 +218,8 @@
         paragraphs = data.respuesta.replace(/[\*\/]/g, '').split(/\n+/).filter(p => p.trim() !== "");
         paragraphElements = document.querySelectorAll('#resultado p');
         currentParagraphIndex = 0;
-
         btnAudioEl.style.display = "block";
         speech = null;
-
       } catch (err) {
         console.error("❌ Error de conexión:", err);
         screen.innerHTML = `<p>⚠️ Error al conectar con el servidor.</p>`;
@@ -231,20 +229,11 @@
     btnAudioEl.addEventListener('click', () => {
       const synth = window.speechSynthesis;
       if (!paragraphs.length) return;
-
       if (synth.speaking || paused) {
-        if (!paused) {
-          synth.pause();
-          paused = true;
-          btnAudioEl.classList.remove('speaking');
-        } else {
-          synth.resume();
-          paused = false;
-          btnAudioEl.classList.add('speaking');
-        }
+        if (!paused) { synth.pause(); paused = true; btnAudioEl.classList.remove('speaking'); }
+        else { synth.resume(); paused = false; btnAudioEl.classList.add('speaking'); }
       } else {
-        currentParagraphIndex = 0;
-        speakNext();
+        currentParagraphIndex = 0; speakNext();
       }
     });
 
@@ -254,54 +243,30 @@
         currentParagraphIndex = 0;
         paragraphElements.forEach(p => p.classList.remove('highlight'));
         if(paragraphElements[0]) paragraphElements[0].scrollIntoView({behavior:'smooth', block:'start'});
-        speech = null;
-        return;
+        speech = null; return;
       }
-
       const paragraph = paragraphs[currentParagraphIndex];
       const utterance = new SpeechSynthesisUtterance(paragraph);
       utterance.lang = 'es-ES';
-
       paragraphElements.forEach(p => p.classList.remove('highlight'));
       const currentEl = paragraphElements[currentParagraphIndex];
-      if (currentEl) {
-        currentEl.classList.add('highlight');
-        currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-
-      utterance.onend = () => {
-        currentParagraphIndex++;
-        speakNext();
-      };
-
-      speech = utterance;
-      window.speechSynthesis.speak(speech);
-      btnAudioEl.classList.add('speaking');
-      paused = false;
+      if (currentEl) { currentEl.classList.add('highlight'); currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      utterance.onend = () => { currentParagraphIndex++; speakNext(); };
+      speech = utterance; window.speechSynthesis.speak(speech);
+      btnAudioEl.classList.add('speaking'); paused = false;
     }
 
     function formatText(text) {
       if (!text) return "Sin respuesta del modelo.";
-
       const paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
-
-      const tags = [
-        "Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques",
-        "Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos",
-        "Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"
-      ];
-
+      const tags = ["Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques","Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos","Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"];
       return paragraphs.map(p => {
-        tags.forEach(tag => {
-          const regex = new RegExp(`(${tag}):`, "gi");
-          p = p.replace(regex, `<span class="tag">${tag}</span>:`); 
-        });
+        tags.forEach(tag => { const regex = new RegExp(`(${tag}):`, "gi"); p = p.replace(regex, `<span class='tag'>${tag}</span>:`); });
         return `<p>${p}</p>`;
       }).join("");
     }
   </script>
   <script>
-  // 🔄 Ping automático para “despertar” el servidor
   window.addEventListener("load", () => {
     fetch(`${window.location.origin}/`)
       .then(() => console.log("✅ Servidor activo"))
