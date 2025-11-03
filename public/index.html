@@ -25,8 +25,16 @@
       padding: 20px;
       box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
     }
-    h1 { text-align: center; margin-bottom: 15px; text-shadow: 2px 2px 3px #000; }
-    form { display: flex; justify-content: center; margin-bottom: 15px; }
+    h1 { 
+      text-align: center; 
+      margin-bottom: 15px; 
+      text-shadow: 2px 2px 3px #000; 
+    }
+    form { 
+      display: flex; 
+      justify-content: center; 
+      margin-bottom: 15px; 
+    }
     input {
       width: 70%;
       padding: 10px;
@@ -110,38 +118,6 @@
       100% { transform: scale(1); background-color: #444; color: #fff; }
     }
   </style>
-
-  <!-- 🚀 Compatibilidad para navegadores antiguos -->
-  <script>
-  (function() {
-    function isInWebView() {
-      return /(wv|WebView|; wv)/i.test(navigator.userAgent);
-    }
-    const faltaFetch = typeof fetch === "undefined";
-    const faltaPromise = typeof Promise === "undefined";
-    const faltaAsync = (() => {
-      try { new Function("async function test(){}")(); return false; }
-      catch { return true; }
-    })();
-
-    if (isInWebView() || faltaFetch || faltaPromise || faltaAsync) {
-      console.log("🔧 Entorno limitado detectado. Cargando polyfills...");
-      const scripts = [
-        "https://cdn.jsdelivr.net/npm/es6-promise@4.2.8/dist/es6-promise.auto.min.js",
-        "https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.min.js",
-        "https://cdn.jsdelivr.net/npm/core-js-bundle@3.37.0/minified.js"
-      ];
-      scripts.forEach(src => {
-        const s = document.createElement("script");
-        s.src = src;
-        s.async = false;
-        document.head.appendChild(s);
-      });
-    } else {
-      console.log("🟢 Entorno moderno detectado. Sin cambios necesarios.");
-    }
-  })();
-  </script>
 </head>
 <body>
   <div class="pokedex">
@@ -161,14 +137,15 @@
     const input = document.getElementById('pokemonInput');
     const screen = document.getElementById('screen');
     const btnAudioEl = document.getElementById('btnAudio');
+
     let speech = null, paused = false, currentParagraphIndex = 0, paragraphs = [], paragraphElements = [];
 
     btnAudioEl.style.display = "none";
 
-    // ✅ Actualizado: usa HTTPS directo y mantiene el fallback
+    // Función para obtener datos de Pokémon
     async function obtenerPokemon(nombre) {
       try {
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(nombre)}`, { mode: 'cors' });
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(nombre)}`);
         if (res.ok) return await res.json();
         throw new Error("bloqueado o sin acceso");
       } catch (err) {
@@ -179,6 +156,7 @@
       }
     }
 
+    // Form submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (window.speechSynthesis.speaking || window.speechSynthesis.pending) window.speechSynthesis.cancel();
@@ -198,6 +176,7 @@
           body: JSON.stringify({ pokemon: nombre })
         });
         const data = await res.json();
+
         if (!res.ok) {
           screen.innerHTML = `<p>❌ Error: ${data.error || "No se pudo obtener información."}</p>`;
           return;
@@ -217,12 +196,14 @@
         currentParagraphIndex = 0;
         btnAudioEl.style.display = "block";
         speech = null;
+
       } catch (err) {
         console.error("❌ Error de conexión:", err);
         screen.innerHTML = `<p>⚠️ Error al conectar con el servidor.</p>`;
       }
     });
 
+    // Botón de audio
     btnAudioEl.addEventListener('click', () => {
       const synth = window.speechSynthesis;
       if (!paragraphs.length) return;
@@ -253,67 +234,19 @@
       btnAudioEl.classList.add('speaking'); paused = false;
     }
 
+    // Formatea el texto para resaltar tags
     function formatText(text) {
       if (!text) return "Sin respuesta del modelo.";
       const paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
       const tags = ["Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques","Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos","Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"];
       return paragraphs.map(p => {
-        tags.forEach(tag => { const regex = new RegExp(`(${tag}):`, "gi"); p = p.replace(regex, `<span class='tag'>${tag}</span>:`); });
+        tags.forEach(tag => { 
+          const regex = new RegExp(`(${tag}):`, "gi"); 
+          p = p.replace(regex, `<span class='tag'>${tag}</span>:`); 
+        });
         return `<p>${p}</p>`;
       }).join("");
     }
-  </script>
-
-  <script>
-  window.addEventListener("load", () => {
-    fetch(`${window.location.origin}/`)
-      .then(() => console.log("✅ Servidor activo"))
-      .catch(() => console.warn("⚠️ No se pudo hacer ping al servidor"));
-  });
-  </script>
-
-  <!-- 🌐 Fallback final para fetch (AppCreator24 / WebView antiguos) -->
-  <script>
-  (function() {
-    if (typeof window.fetch !== 'function') {
-      console.warn('⚠️ fetch no está disponible, usando polyfill con XMLHttpRequest.');
-      window.fetch = function(url, options) {
-        return new Promise(function(resolve, reject) {
-          var xhr = new XMLHttpRequest();
-          xhr.open(options && options.method ? options.method : 'GET', url, true);
-          if (options && options.headers) {
-            for (var key in options.headers) {
-              if (options.headers.hasOwnProperty(key)) {
-                xhr.setRequestHeader(key, options.headers[key]);
-              }
-            }
-          }
-          xhr.onload = function() {
-            var body = 'response' in xhr ? xhr.response : xhr.responseText;
-            resolve({
-              ok: (xhr.status >= 200 && xhr.status < 300),
-              status: xhr.status,
-              statusText: xhr.statusText,
-              text: function() { return Promise.resolve(body); },
-              json: function() { 
-                try { return Promise.resolve(JSON.parse(body)); }
-                catch (e) { return Promise.reject(e); }
-              }
-            });
-          };
-          xhr.onerror = function() {
-            reject(new TypeError('Network request failed'));
-          };
-          xhr.send(options && options.body ? options.body : null);
-        });
-      };
-    } else {
-      window.fetch('about:blank').catch(function() {
-        console.warn('⚠️ fetch está presente pero no funcional, aplicando fallback.');
-        delete window.fetch;
-      });
-    }
-  })();
   </script>
 </body>
 </html>
