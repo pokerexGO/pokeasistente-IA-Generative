@@ -57,7 +57,8 @@ app.post("/api/chat", async (req, res) => {
 
 // 🔧 NUEVA RUTA PROXY PARA COMPATIBILIDAD CON APPCREATOR24
 // Esto evita bloqueos del WebView antiguo al hacer peticiones externas (como la pokeAPI)
-app.get("/proxy/pokemon/:name", async (req, res) => {
+// 🔧 NUEVA RUTA PROXY PARA COMPATIBILIDAD CON APPCREATOR24
+app.get("/api/proxy-pokemon/:name", async (req, res) => {
   try {
     const name = req.params.name.toLowerCase();
     const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
