@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PokeAsistente IA</title>
   <style>
-    /* (todo tu CSS original intacto) */
     body {
       font-family: 'Roboto', sans-serif;
       background: radial-gradient(circle at top, #ff4b2b, #000);
@@ -112,7 +111,7 @@
     }
   </style>
 
-  <!-- 🚀 Compatibilidad automática para navegadores antiguos (AppCreator24) -->
+  <!-- 🚀 Compatibilidad para navegadores antiguos -->
   <script>
   (function() {
     function isInWebView() {
@@ -166,16 +165,15 @@
 
     btnAudioEl.style.display = "none";
 
-    // 🧩 NUEVA FUNCIÓN: obtiene datos del Pokémon con fallback interno
+    // ✅ Actualizado: usa HTTPS directo y mantiene el fallback
     async function obtenerPokemon(nombre) {
       try {
-        // Intento directo a la PokeAPI
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(nombre)}`, { mode: 'cors' });
         if (res.ok) return await res.json();
         throw new Error("bloqueado o sin acceso");
       } catch (err) {
         console.warn("⚠️ PokeAPI bloqueada, usando proxy interno:", err.message);
-        const res = await fetch(`/api/proxy-pokemon/${nombre}`);
+        const res = await fetch(`/api/proxy-pokemon/${encodeURIComponent(nombre)}`);
         if (!res.ok) throw new Error("No se pudo obtener datos ni con proxy");
         return await res.json();
       }
@@ -205,7 +203,6 @@
           return;
         }
 
-        // ⚙️ ahora usa la función con fallback
         const pokeData = await obtenerPokemon(nombre);
         const sprite = pokeData?.sprites?.other?.["official-artwork"]?.front_default || "";
 
@@ -266,6 +263,7 @@
       }).join("");
     }
   </script>
+
   <script>
   window.addEventListener("load", () => {
     fetch(`${window.location.origin}/`)
