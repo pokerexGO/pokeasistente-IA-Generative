@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fetch from "node-fetch"; // 🔧 Añadido para usar fetch en el servidor
+import fetch from "node-fetch";
 
 dotenv.config();
 
@@ -15,17 +15,14 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ✅ Usar el modelo original de Replit:
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// Función reutilizable
 async function generarRespuesta(prompt) {
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// Endpoint principal de Pokémon
 app.post("/api/pokemon", async (req, res) => {
   try {
     const { pokemon, prompt } = req.body;
@@ -41,7 +38,6 @@ app.post("/api/pokemon", async (req, res) => {
   }
 });
 
-// Endpoint de chat (opcional)
 app.post("/api/chat", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -55,9 +51,6 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// 🔧 NUEVA RUTA PROXY PARA COMPATIBILIDAD CON APPCREATOR24
-// Esto evita bloqueos del WebView antiguo al hacer peticiones externas (como la pokeAPI)
-// 🔧 NUEVA RUTA PROXY PARA COMPATIBILIDAD CON APPCREATOR24
 app.get("/api/proxy-pokemon/:name", async (req, res) => {
   try {
     const name = req.params.name.toLowerCase();
@@ -71,5 +64,4 @@ app.get("/api/proxy-pokemon/:name", async (req, res) => {
   }
 });
 
-// Exportar para Vercel
 export default app;
