@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import fetch from "node-fetch"; // 🔧 Añadido para usar fetch en el servidor
 
 dotenv.config();
 
@@ -51,6 +52,21 @@ app.post("/api/chat", async (req, res) => {
   } catch (error) {
     console.error("Error en /api/chat:", error);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔧 NUEVA RUTA PROXY PARA COMPATIBILIDAD CON APPCREATOR24
+// Esto evita bloqueos del WebView antiguo al hacer peticiones externas (como la pokeAPI)
+app.get("/proxy/pokemon/:name", async (req, res) => {
+  try {
+    const name = req.params.name.toLowerCase();
+    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
+    if (!response.ok) throw new Error("No se encontró el Pokémon");
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Error en proxy:", err);
+    res.status(500).json({ error: "Error en proxy de PokeAPI" });
   }
 });
 
