@@ -111,6 +111,41 @@
       100% { transform: scale(1); background-color: #444; color: #fff; }
     }
   </style>
+
+  <!-- 🚀 Compatibilidad automática para navegadores antiguos (AppCreator24) -->
+  <script>
+  (function() {
+    function isInWebView() {
+      return /(wv|WebView|; wv)/i.test(navigator.userAgent);
+    }
+    const faltaFetch = typeof fetch === "undefined";
+    const faltaPromise = typeof Promise === "undefined";
+    const faltaAsync = (() => {
+      try { new Function("async function test(){}")(); return false; }
+      catch { return true; }
+    })();
+
+    if (isInWebView() || faltaFetch || faltaPromise || faltaAsync) {
+      console.log("🔧 Entorno limitado detectado. Cargando polyfills...");
+
+      const scripts = [
+        "https://cdn.jsdelivr.net/npm/es6-promise@4.2.8/dist/es6-promise.auto.min.js",
+        "https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.min.js",
+        "https://cdn.jsdelivr.net/npm/core-js-bundle@3.37.0/minified.js"
+      ];
+
+      scripts.forEach(src => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = false; // asegurar orden
+        document.head.appendChild(s);
+      });
+    } else {
+      console.log("🟢 Entorno moderno detectado. Sin cambios necesarios.");
+    }
+  })();
+  </script>
+
 </head>
 <body>
   <div class="pokedex">
@@ -157,7 +192,6 @@
       btnAudioEl.style.display = "none";
 
       try {
-        // ✅ AJUSTE PARA VERCEL
         const res = await fetch(`/api/pokemon`, { 
           method: "POST",
           headers: { "Content-Type": "application/json" },
