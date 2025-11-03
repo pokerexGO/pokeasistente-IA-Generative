@@ -139,36 +139,10 @@
     const btnAudioEl = document.getElementById('btnAudio');
 
     let speech = null, paused = false, currentParagraphIndex = 0, paragraphs = [], paragraphElements = [];
+
     btnAudioEl.style.display = "none";
 
-    // 🔧 APP CREATOR: función fetch con fallback proxy
-    async function buscarPokemon(nombre) {
-      try {
-        // Primero intentamos el endpoint principal
-        let res = await fetch(`${window.location.origin}/api/pokemon`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pokemon: nombre })
-        });
-        if (!res.ok) throw new Error("Error en fetch principal");
-        const data = await res.json();
-        return data;
-      } catch (err) {
-        console.warn("⚠️ Fetch principal falló, usando proxy interno:", err.message);
-        // Fallback al proxy
-        try {
-          const resProxy = await fetch(`${window.location.origin}/api/proxy-pokemon/${encodeURIComponent(nombre)}`);
-          if (!resProxy.ok) throw new Error("Error en proxy");
-          const proxyData = await resProxy.json();
-          return { respuesta: `Datos obtenidos del proxy: ${JSON.stringify(proxyData)}` };
-        } catch (err2) {
-          console.error("❌ Error en proxy también:", err2);
-          return { respuesta: "No se pudo obtener información del Pokémon." };
-        }
-      }
-    }
-
-    // Form submit
+    // ✅ Nueva versión: ya no se hace fetch a PokeAPI desde el cliente
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (window.speechSynthesis.speaking || window.speechSynthesis.pending) window.speechSynthesis.cancel();
@@ -182,15 +156,19 @@
       btnAudioEl.style.display = "none";
 
       try {
-        // 🔧 APP CREATOR: usamos la función buscarPokemon con fallback proxy
-        const data = await buscarPokemon(nombre);
+        const res = await fetch(`/api/pokemon`, { 
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pokemon: nombre })
+        });
+        const data = await res.json();
 
-        // Obtenemos la imagen oficial si el proxy la proporciona
-        let sprite = "";
-        try {
-          const pokeData = await fetch(`${window.location.origin}/api/proxy-pokemon/${encodeURIComponent(nombre)}`).then(r => r.json());
-          sprite = pokeData?.sprites?.other?.["official-artwork"]?.front_default || "";
-        } catch {}
+        if (!res.ok || !data.respuesta) {
+          screen.innerHTML = `<p>❌ Error: ${data.error || "No se pudo obtener información."}</p>`;
+          return;
+        }
+
+        const sprite = data.sprite || "";
 
         screen.innerHTML = `
           ${sprite ? `<img src="${sprite}" alt="${nombre}" class="pokemon-img">` : ""}
@@ -210,7 +188,7 @@
       }
     });
 
-    // Botón de audio
+    // 🎧 Botón de audio
     btnAudioEl.addEventListener('click', () => {
       const synth = window.speechSynthesis;
       if (!paragraphs.length) return;
@@ -241,7 +219,7 @@
       btnAudioEl.classList.add('speaking'); paused = false;
     }
 
-    // Formatea el texto para resaltar tags
+    // 🧩 Formatea texto
     function formatText(text) {
       if (!text) return "Sin respuesta del modelo.";
       const paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
@@ -257,3 +235,4 @@
   </script>
 </body>
 </html>
+
