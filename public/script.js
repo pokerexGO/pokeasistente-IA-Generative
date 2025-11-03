@@ -24,37 +24,23 @@
 // ================================
 // Elementos DOM
 // ================================
-const form = document.getElementById("buscarForm");
-const input = document.getElementById("pokemonInput");
-const screen = document.getElementById("screen");
-const btnAudioEl = document.getElementById("btnAudio");
+var form = document.getElementById("buscarForm");
+var input = document.getElementById("pokemonInput");
+var screen = document.getElementById("screen");
+var btnAudioEl = document.getElementById("btnAudio");
 
-let speech = null;
-let paused = false;
-let currentParagraphIndex = 0;
-let paragraphs = [];
-let paragraphElements = [];
+var speech = null;
+var paused = false;
+var currentParagraphIndex = 0;
+var paragraphs = [];
+var paragraphElements = [];
 
 btnAudioEl.style.display = "none";
 
 // ================================
-// Fetch Pokémon vía proxy
-// ================================
-async function obtenerPokemon(nombre) {
-  try {
-    const res = await fetch(`/api/proxy-pokemon/${encodeURIComponent(nombre.toLowerCase())}`);
-    if (!res.ok) throw new Error("No se encontró el Pokémon");
-    return await res.json();
-  } catch (err) {
-    console.error("Error en proxy:", err);
-    return null;
-  }
-}
-
-// ================================
 // Formulario principal
 // ================================
-form.addEventListener("submit", async (e) => {
+form.addEventListener("submit", function (e) {
   e.preventDefault();
 
   if (window.speechSynthesis && window.speechSynthesis.speaking) {
@@ -63,58 +49,48 @@ form.addEventListener("submit", async (e) => {
   paused = false;
   btnAudioEl.classList.remove("speaking");
 
-  const nombre = (input.value || "").trim().toLowerCase();
+  var nombre = (input.value || "").trim().toLowerCase();
   if (!nombre) return alert("Ingresa un nombre de Pokémon");
 
-  screen.innerHTML = `<p>🔎 Buscando información sobre <strong>${nombre}</strong>...</p>`;
+  screen.innerHTML = "<p>🔎 Buscando información sobre <strong>" + nombre + "</strong>...</p>";
   btnAudioEl.style.display = "none";
 
-  try {
-    // Endpoint principal /api/pokemon
-    const res = await fetch("/api/pokemon", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pokemon: nombre })
+  // ✅ Llamada única al servidor
+  fetch("/api/pokemon", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pokemon: nombre })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        screen.innerHTML = "<p>❌ Error: " + data.error + "</p>";
+        return;
+      }
+
+      screen.innerHTML =
+        (data.sprite ? `<img src="${data.sprite}" alt="${nombre}" class="pokemon-img">` : "") +
+        "<h2>" + nombre.toUpperCase() + "</h2>" +
+        "<div id='resultado'>" + formatText(data.respuesta) + "</div>";
+
+      paragraphs = (data.respuesta || "").replace(/[\*\/]/g, "").split(/\n+/).filter(function(p) { return p.trim() !== ""; });
+      paragraphElements = document.querySelectorAll("#resultado p");
+      currentParagraphIndex = 0;
+      btnAudioEl.style.display = "block";
+      speech = null;
+    })
+    .catch(() => {
+      screen.innerHTML = "<p>⚠️ Error al conectar con el servidor.</p>";
     });
-    const data = await res.json();
-
-    if (!res.ok) {
-      screen.innerHTML = `<p>❌ Error: ${data.error || "No se pudo obtener información."}</p>`;
-      return;
-    }
-
-    // Obtener datos del sprite
-    const pokeData = await obtenerPokemon(nombre);
-    let sprite = "";
-    if (pokeData?.sprites?.other?.["official-artwork"]?.front_default) {
-      sprite = pokeData.sprites.other["official-artwork"].front_default;
-    }
-
-    screen.innerHTML = `
-      ${sprite ? `<img src='${sprite}' alt='${nombre}' class='pokemon-img'>` : ""}
-      <h2>${nombre.toUpperCase()}</h2>
-      <div id='resultado'>${formatText(data.respuesta)}</div>
-    `;
-
-    paragraphs = (data.respuesta || "").replace(/[\*\/]/g, "").split(/\n+/).filter(p => p.trim() !== "");
-    paragraphElements = document.querySelectorAll("#resultado p");
-    currentParagraphIndex = 0;
-    btnAudioEl.style.display = "block";
-    speech = null;
-
-  } catch (err) {
-    console.error("Error al buscar Pokémon:", err);
-    screen.innerHTML = "<p>⚠️ Error al conectar con el servidor.</p>";
-  }
 });
 
 // ================================
 // Audio TTS
 // ================================
 if ("speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function") {
-  btnAudioEl.addEventListener("click", () => {
+  btnAudioEl.addEventListener("click", function () {
     if (!paragraphs.length) return;
-    const synth = window.speechSynthesis;
+    var synth = window.speechSynthesis;
 
     if (synth.speaking || paused) {
       if (!paused) { synth.pause(); paused = true; btnAudioEl.classList.remove("speaking"); }
@@ -133,28 +109,26 @@ function speakNext() {
   if (currentParagraphIndex >= paragraphs.length) {
     btnAudioEl.classList.remove("speaking");
     currentParagraphIndex = 0;
-    paragraphElements.forEach(p => p.classList.remove("highlight"));
-    if (paragraphElements[0]) paragraphElements[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    paragraphElements.forEach(el => el.classList.remove("highlight"));
+    if (paragraphElements[0]) paragraphElements[0].scrollIntoView({behavior:'smooth', block:'start'});
     speech = null;
     return;
   }
-
-  const paragraph = paragraphs[currentParagraphIndex];
-  const utterance = new SpeechSynthesisUtterance(paragraph);
+  var paragraph = paragraphs[currentParagraphIndex];
+  var utterance = new SpeechSynthesisUtterance(paragraph);
   utterance.lang = 'es-ES';
 
-  paragraphElements.forEach(p => p.classList.remove('highlight'));
-  const currentEl = paragraphElements[currentParagraphIndex];
+  paragraphElements.forEach(el => el.classList.remove('highlight'));
+  var currentEl = paragraphElements[currentParagraphIndex];
   if (currentEl) {
     currentEl.classList.add('highlight');
     currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  utterance.onend = () => { currentParagraphIndex++; speakNext(); };
+  utterance.onend = function () { currentParagraphIndex++; speakNext(); };
   speech = utterance;
   window.speechSynthesis.speak(speech);
-  btnAudioEl.classList.add('speaking');
-  paused = false;
+  btnAudioEl.classList.add('speaking'); paused = false;
 }
 
 // ================================
@@ -162,14 +136,14 @@ function speakNext() {
 // ================================
 function formatText(text) {
   if (!text) return "Sin respuesta del modelo.";
-  const paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
-  const tags = ["Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques","Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos","Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"];
-
-  return paragraphs.map(p => {
-    tags.forEach(tag => {
-      const regex = new RegExp(`(${tag}):`, "gi");
-      p = p.replace(regex, `<span class='tag'>${tag}</span>:`);
-    });
-    return `<p>${p}</p>`;
+  var paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
+  var tags = ["Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques","Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos","Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"];
+  
+  return paragraphs.map(function(p) {
+    for (var i=0; i<tags.length; i++) {
+      var regex = new RegExp("(" + tags[i] + "):", "gi");
+      p = p.replace(regex, "<span class='tag'>" + tags[i] + "</span>:");
+    }
+    return "<p>" + p + "</p>";
   }).join("");
 }
