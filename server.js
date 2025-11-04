@@ -14,25 +14,30 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Modelo Gemini
+// Inicializar modelo Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+// Función para generar respuestas de la IA
 async function generarRespuesta(prompt) {
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (error) {
+    console.error("Error en Gemini:", error);
+    return "No se pudo generar información adicional en este momento.";
+  }
 }
 
+// Endpoint principal
 app.post("/api/pokemon", async (req, res) => {
   try {
     const nombre = (req.body.pokemon || "").toLowerCase();
     if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
 
-    // Obtener datos desde la PokeAPI
+    // Obtener datos base del Pokémon desde la PokeAPI
     const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
-    if (!pokeRes.ok) {
-      return res.status(404).json({ error: "Pokémon no encontrado" });
-    }
+    if (!pokeRes.ok) return res.status(404).json({ error: "Pokémon no encontrado" });
     const pokeData = await pokeRes.json();
 
     const sprite =
@@ -40,25 +45,39 @@ app.post("/api/pokemon", async (req, res) => {
       pokeData.sprites?.front_default ||
       "";
 
-    // Obtener ataques recomendados
-    const ataques = pokeData.moves
-      .slice(0, 5)
-      .map((m) => m.move.name.replace("-", " "))
-      .join(", ");
+    // Tipos, habilidades, y estadísticas
+    const tipos = pokeData.types.map((t) => t.type.name).join(", ");
+    const habilidades = pokeData.abilities.map((a) => a.ability.name).join(", ");
+    const baseStats = pokeData.stats
+      .map((s) => `${s.stat.name}: ${s.base_stat}`)
+      .join(" | ");
 
-    // Descripción más completa pero no extensa
-    const consulta = `Dame una descripción clara y breve del Pokémon ${nombre} en Pokémon GO. 
-    Incluye sus tipos, fortalezas, debilidades y una pequeña estrategia de combate. 
-    Sé conciso pero informativo.`;
+    // Ataques recomendados (siempre al menos algo)
+    const ataques = pokeData.moves.length
+      ? pokeData.moves.slice(0, 5).map((m) => m.move.name.replace(/-/g, " ")).join(", ")
+      : "Información no disponible";
 
-    const respuesta = await generarRespuesta(consulta);
+    // Prompt más completo para Gemini (pero conciso)
+    const consulta = `En el contexto de Pokémon GO, describe al Pokémon ${nombre} con los siguientes puntos:
+    - Tipos: ${tipos}.
+    - Fortalezas y debilidades principales.
+    - Estrategia general para usarlo en combate.
+    - Movimiento o ataque más recomendado.
+    - Breve consejo para contrarrestarlo si el rival lo usa.
+    Resume cada punto con frases cortas y claras, no más de 5 líneas.`;
 
+    const respuestaIA = await generarRespuesta(consulta);
+
+    // Enviar todos los datos al frontend
     res.json({
-      respuesta,
+      nombre,
       sprite,
-      ataquesRecomendados: ataques || "No se encontraron ataques disponibles"
+      tipos,
+      habilidades,
+      baseStats,
+      ataquesRecomendados: ataques,
+      descripcionIA: respuestaIA,
     });
-
   } catch (error) {
     console.error("Error en /api/pokemon:", error);
     res.status(500).json({ error: "Error interno del servidor" });
