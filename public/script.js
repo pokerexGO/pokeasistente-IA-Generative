@@ -1,6 +1,3 @@
-// ================================
-// Compatibilidad entornos antiguos
-// ================================
 (function () {
   const isOldEnv =
     !window.fetch ||
@@ -21,9 +18,6 @@
   }
 })();
 
-// ================================
-// Elementos DOM
-// ================================
 var form = document.getElementById("buscarForm");
 var input = document.getElementById("pokemonInput");
 var screen = document.getElementById("screen");
@@ -55,32 +49,44 @@ form.addEventListener("submit", function (e) {
   screen.innerHTML = "<p>🔎 Buscando información sobre <strong>" + nombre + "</strong>...</p>";
   btnAudioEl.style.display = "none";
 
-  // ✅ Llamada única al servidor
-  fetch("/api/pokemon", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pokemon: nombre })
-  })
-    .then(res => res.json())
+  fetch("/api/pokemon/" + encodeURIComponent(nombre))
+    .then(response => response.json())
     .then(data => {
-      if (data.error) {
-        screen.innerHTML = "<p>❌ Error: " + data.error + "</p>";
+      if (!data.respuesta) {
+        screen.innerHTML = "<p>❌ No se pudo obtener información.</p>";
         return;
       }
 
-      screen.innerHTML =
-        (data.sprite ? `<img src="${data.sprite}" alt="${nombre}" class="pokemon-img">` : "") +
-        "<h2>" + nombre.toUpperCase() + "</h2>" +
-        "<div id='resultado'>" + formatText(data.respuesta) + "</div>";
+      fetch("/api/proxy-pokemon/" + encodeURIComponent(nombre))
+        .then(resp => resp.json())
+        .then(pokeData => {
+          var sprite = "";
+          if (pokeData &&
+              pokeData.sprites &&
+              pokeData.sprites.other &&
+              pokeData.sprites.other["official-artwork"] &&
+              pokeData.sprites.other["official-artwork"].front_default) {
+            sprite = pokeData.sprites.other["official-artwork"].front_default;
+          }
 
-      paragraphs = (data.respuesta || "").replace(/[\*\/]/g, "").split(/\n+/).filter(function(p) { return p.trim() !== ""; });
-      paragraphElements = document.querySelectorAll("#resultado p");
-      currentParagraphIndex = 0;
-      btnAudioEl.style.display = "block";
-      speech = null;
+          screen.innerHTML =
+            "<img src='" + sprite + "' alt='" + nombre + "' class='pokemon-img'>" +
+            "<h2>" + nombre.toUpperCase() + "</h2>" +
+            "<div id='resultado'>" + formatText(data.respuesta) + "</div>";
+
+          paragraphs = (data.respuesta || "").replace(/[\*\/]/g, "").split(/\n+/).filter(p => p.trim() !== "");
+          paragraphElements = document.querySelectorAll("#resultado p");
+          currentParagraphIndex = 0;
+          btnAudioEl.style.display = "block";
+          speech = null;
+        })
+        .catch(err => {
+          screen.innerHTML += "<p>⚠️ No se pudo obtener sprite del Pokémon.</p>";
+        });
     })
-    .catch(() => {
+    .catch(err => {
       screen.innerHTML = "<p>⚠️ Error al conectar con el servidor.</p>";
+      console.error(err);
     });
 });
 
@@ -109,7 +115,7 @@ function speakNext() {
   if (currentParagraphIndex >= paragraphs.length) {
     btnAudioEl.classList.remove("speaking");
     currentParagraphIndex = 0;
-    paragraphElements.forEach(el => el.classList.remove("highlight"));
+    for (var i = 0; i < paragraphElements.length; i++) paragraphElements[i].classList.remove("highlight");
     if (paragraphElements[0]) paragraphElements[0].scrollIntoView({behavior:'smooth', block:'start'});
     speech = null;
     return;
@@ -118,7 +124,7 @@ function speakNext() {
   var utterance = new SpeechSynthesisUtterance(paragraph);
   utterance.lang = 'es-ES';
 
-  paragraphElements.forEach(el => el.classList.remove('highlight'));
+  for (var j = 0; j < paragraphElements.length; j++) paragraphElements[j].classList.remove('highlight');
   var currentEl = paragraphElements[currentParagraphIndex];
   if (currentEl) {
     currentEl.classList.add('highlight');
@@ -138,7 +144,7 @@ function formatText(text) {
   if (!text) return "Sin respuesta del modelo.";
   var paragraphs = text.split(/\n+/).filter(p => p.trim() !== "");
   var tags = ["Tipo","Tipos","Habilidad","Habilidades","Debilidad","Debilidades","Ataque","Ataques","Estrategia","Estrategias","Consejo","Consejos","Evolución","Evoluciones","Movimientos","Resistencia","Ventaja","Fortaleza","Fortalezas","Debilidad Frente A","Recomendación","Notas"];
-  
+
   return paragraphs.map(function(p) {
     for (var i=0; i<tags.length; i++) {
       var regex = new RegExp("(" + tags[i] + "):", "gi");
