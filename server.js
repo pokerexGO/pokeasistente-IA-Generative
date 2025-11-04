@@ -29,7 +29,17 @@ app.post("/api/pokemon", async (req, res) => {
     const nombre = (req.body.pokemon || "").toLowerCase();
     if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
 
-    const consulta = `Dame una descripción detallada de ${nombre} en Pokémon GO, incluyendo debilidades, fortalezas, ataques y estrategias.`;
+    const consulta = `
+Dame una descripción breve y ordenada de ${nombre} en Pokémon GO.
+Responde con secciones:
+Tipo:
+Fortalezas:
+Debilidades:
+Ataques recomendados:
+Estrategia:
+
+Sé claro y usa oraciones cortas. No repitas información ni des párrafos largos.
+`;
     const respuesta = await generarRespuesta(consulta);
 
     // Obtener sprite
