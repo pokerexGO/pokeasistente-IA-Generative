@@ -14,75 +14,82 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Inicializar modelo Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// Función para generar respuestas de la IA
+// =============================================
+// Función IA con control de errores
+// =============================================
 async function generarRespuesta(prompt) {
   try {
     const result = await model.generateContent(prompt);
     return result.response.text();
-  } catch (error) {
-    console.error("Error en Gemini:", error);
-    return "No se pudo generar información adicional en este momento.";
+  } catch (err) {
+    console.error("Error generando respuesta de Gemini:", err);
+    return "No se pudo generar la descripción en este momento.";
   }
 }
 
-// Endpoint principal
-app.post("/api/pokemon", async (req, res) => {
+// =============================================
+// Ruta principal compatible con tu script.js
+// =============================================
+app.get("/api/pokemon/:nombre", async (req, res) => {
   try {
-    const nombre = (req.body.pokemon || "").toLowerCase();
-    if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
+    const nombre = req.params.nombre.toLowerCase();
 
-    // Obtener datos base del Pokémon desde la PokeAPI
     const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
-    if (!pokeRes.ok) return res.status(404).json({ error: "Pokémon no encontrado" });
+    if (!pokeRes.ok) {
+      return res.json({ respuesta: null });
+    }
+
     const pokeData = await pokeRes.json();
 
-    const sprite =
-      pokeData.sprites?.other?.["official-artwork"]?.front_default ||
-      pokeData.sprites?.front_default ||
-      "";
-
-    // Tipos, habilidades, y estadísticas
-    const tipos = pokeData.types.map((t) => t.type.name).join(", ");
-    const habilidades = pokeData.abilities.map((a) => a.ability.name).join(", ");
+    // Datos base
+    const tipos = pokeData.types.map(t => t.type.name).join(", ");
+    const habilidades = pokeData.abilities.map(a => a.ability.name).join(", ");
+    const ataques = pokeData.moves.length
+      ? pokeData.moves.slice(0, 5).map(m => m.move.name.replace(/-/g, " ")).join(", ")
+      : "Información no disponible";
     const baseStats = pokeData.stats
-      .map((s) => `${s.stat.name}: ${s.base_stat}`)
+      .map(s => `${s.stat.name}: ${s.base_stat}`)
       .join(" | ");
 
-    // Ataques recomendados (siempre al menos algo)
-    const ataques = pokeData.moves.length
-      ? pokeData.moves.slice(0, 5).map((m) => m.move.name.replace(/-/g, " ")).join(", ")
-      : "Información no disponible";
+    // Prompt con más información (ordenada pero no extensa)
+    const prompt = `Eres un experto en Pokémon. Genera una descripción clara, breve y ordenada del Pokémon ${nombre}.
+Incluye los siguientes apartados (cada uno en párrafo separado):
+Tipo: ${tipos}
+Habilidades: ${habilidades}
+Ataques recomendados: ${ataques}
+Fortalezas: principales ventajas o resistencias.
+Debilidades: principales desventajas o tipos que lo afectan.
+Estrategias: cómo usarlo en combate de forma efectiva.
+Consejos: recomendaciones breves para entrenarlo.
+Evita textos largos (máx. 4 líneas por punto).`;
 
-    // Prompt más completo para Gemini (pero conciso)
-    const consulta = `En el contexto de Pokémon GO, describe al Pokémon ${nombre} con los siguientes puntos:
-    - Tipos: ${tipos}.
-    - Fortalezas y debilidades principales.
-    - Estrategia general para usarlo en combate.
-    - Movimiento o ataque más recomendado.
-    - Breve consejo para contrarrestarlo si el rival lo usa.
-    Resume cada punto con frases cortas y claras, no más de 5 líneas.`;
+    const respuestaIA = await generarRespuesta(prompt);
 
-    const respuestaIA = await generarRespuesta(consulta);
-
-    // Enviar todos los datos al frontend
-    res.json({
-      nombre,
-      sprite,
-      tipos,
-      habilidades,
-      baseStats,
-      ataquesRecomendados: ataques,
-      descripcionIA: respuestaIA,
-    });
+    // Retornamos con el mismo formato que espera tu script.js
+    res.json({ respuesta: respuestaIA });
   } catch (error) {
     console.error("Error en /api/pokemon:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    res.json({ respuesta: null });
   }
 });
 
-// Exportar para Vercel
+// =============================================
+// Proxy para sprites (igual que antes)
+// =============================================
+app.get("/api/proxy-pokemon/:nombre", async (req, res) => {
+  try {
+    const nombre = req.params.nombre.toLowerCase();
+    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+    if (!response.ok) return res.status(404).json({ error: "Pokémon no encontrado" });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Error en proxy:", error);
+    res.status(500).json({ error: "Error en proxy" });
+  }
+});
+
 export default app;
