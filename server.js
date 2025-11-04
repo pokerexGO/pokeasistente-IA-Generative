@@ -23,38 +23,41 @@ async function generarRespuesta(prompt) {
   return result.response.text();
 }
 
-// POST Pokémon para tu index.html
 app.post("/api/pokemon", async (req, res) => {
   try {
     const nombre = (req.body.pokemon || "").toLowerCase();
     if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
 
-    const consulta = `
-Dame una descripción breve y ordenada de ${nombre} en Pokémon GO.
-Responde con secciones:
-Tipo:
-Fortalezas:
-Debilidades:
-Ataques recomendados:
-Estrategia:
+    // Obtener datos desde la PokeAPI
+    const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+    if (!pokeRes.ok) {
+      return res.status(404).json({ error: "Pokémon no encontrado" });
+    }
+    const pokeData = await pokeRes.json();
 
-Sé claro y usa oraciones cortas. No repitas información ni des párrafos largos.
-`;
+    const sprite =
+      pokeData.sprites?.other?.["official-artwork"]?.front_default ||
+      pokeData.sprites?.front_default ||
+      "";
+
+    // Obtener ataques recomendados
+    const ataques = pokeData.moves
+      .slice(0, 5)
+      .map((m) => m.move.name.replace("-", " "))
+      .join(", ");
+
+    // Descripción más completa pero no extensa
+    const consulta = `Dame una descripción clara y breve del Pokémon ${nombre} en Pokémon GO. 
+    Incluye sus tipos, fortalezas, debilidades y una pequeña estrategia de combate. 
+    Sé conciso pero informativo.`;
+
     const respuesta = await generarRespuesta(consulta);
 
-    // Obtener sprite
-    let sprite = "";
-    try {
-      const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
-      if (pokeRes.ok) {
-        const pokeData = await pokeRes.json();
-        sprite = pokeData.sprites?.other?.["official-artwork"]?.front_default || "";
-      }
-    } catch (err) {
-      console.error("Error al obtener sprite:", err);
-    }
-
-    res.json({ respuesta, sprite });
+    res.json({
+      respuesta,
+      sprite,
+      ataquesRecomendados: ataques || "No se encontraron ataques disponibles"
+    });
 
   } catch (error) {
     console.error("Error en /api/pokemon:", error);
