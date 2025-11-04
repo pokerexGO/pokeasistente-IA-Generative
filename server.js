@@ -23,32 +23,32 @@ async function generarRespuesta(prompt) {
   return result.response.text();
 }
 
-// GET Pokémon para AppCreator24
-app.get("/api/pokemon/:name", async (req, res) => {
+// POST Pokémon para tu index.html
+app.post("/api/pokemon", async (req, res) => {
   try {
-    const nombre = req.params.name;
+    const nombre = (req.body.pokemon || "").toLowerCase();
     if (!nombre) return res.status(400).json({ error: "No se envió nombre del Pokémon" });
 
     const consulta = `Dame una descripción detallada de ${nombre} en Pokémon GO, incluyendo debilidades, fortalezas, ataques y estrategias.`;
     const respuesta = await generarRespuesta(consulta);
-    res.json({ respuesta });
+
+    // Obtener sprite
+    let sprite = "";
+    try {
+      const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${nombre}`);
+      if (pokeRes.ok) {
+        const pokeData = await pokeRes.json();
+        sprite = pokeData.sprites?.other?.["official-artwork"]?.front_default || "";
+      }
+    } catch (err) {
+      console.error("Error al obtener sprite:", err);
+    }
+
+    res.json({ respuesta, sprite });
+
   } catch (error) {
     console.error("Error en /api/pokemon:", error);
     res.status(500).json({ error: "Error interno del servidor" });
-  }
-});
-
-// Proxy para sprites y datos
-app.get("/api/proxy-pokemon/:name", async (req, res) => {
-  try {
-    const name = req.params.name.toLowerCase();
-    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
-    if (!response.ok) throw new Error("No se encontró el Pokémon");
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error("Error en proxy:", err);
-    res.status(500).json({ error: "Error en proxy de PokeAPI" });
   }
 });
 
